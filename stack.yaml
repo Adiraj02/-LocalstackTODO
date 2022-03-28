@@ -1,0 +1,89 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: TODO Template to create DynamoDB and AWS Lambda with appropriate IAM Role
+
+# Paramaeters describing primary key for DynamoDB Table. 
+Parameters:
+  TodoPrimaryKey:
+    Type: String
+    Default: UUID
+    Description: Primary Key for Todo DynamoDB Table
+  TodoPrimaryKeyType:
+    Type: String
+    Default: S
+    Description: Type of the Primary Key for Todo DynamoDB Table
+
+Resources:
+  # DyanamoDB Table with UUID as primary key
+  TodoTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Todo
+      AttributeDefinitions:
+        - 
+          AttributeName: !Ref TodoPrimaryKey
+          AttributeType: !Ref TodoPrimaryKeyType
+      KeySchema:
+        - 
+          AttributeName: !Ref TodoPrimaryKey
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5 
+
+  # IAM role allowing Lambda to perform operation on DynamoDB.
+  # Making use of principle of least priviledge and allowing only get, put and scan operation on DynamoDB that too for TODO resource only
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: Role to provide access to DynamoDB and Cloudwatch
+      Policies:
+        - PolicyName: EmbeddedInlinePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cloudformation:*'
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:Scan'
+                Resource: !GetAtt 'TodoTable.Arn'
+      RoleName: LambdaDynamoDBAccess
+
+  # A Todo lambda named create-todo to put files into DynamoDB based on event passed through direct invokation
+  CreateTodoLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: create-todo
+      Code:
+        S3Bucket: lambda-zip-bucket
+        S3Key: create-todo.zip
+      Description: Create TODO Lambda Function
+      Handler: create-todo.lambda_handler
+      Role: !GetAtt 'LambdaRole.Arn'
+      Runtime: python3.8
+      Timeout: 120
+
+  # A Todo lambda named read-todo to read/scan file/files from DynamoDB based on event passed through direct invokation
+  ReadTodoLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: read-todo
+      Code:
+        S3Bucket: lambda-zip-bucket
+        S3Key: read-todo.zip
+      Description: Read TODO Lambda Function
+      Handler: read-todo.lambda_handler
+      Role: !GetAtt 'LambdaRole.Arn'
+      Runtime: python3.8
+      Timeout: 120
